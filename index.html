@@ -1,109 +1,194 @@
 <!doctype html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#fff7d6" />
-  <title>ポケモン なまえクイズ</title>
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#fff7cf">
+  <title>ポケモン だれかな？クイズ</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <main class="app-shell">
-    <header class="app-header">
+  <main class="app">
+    <header class="topbar">
       <div>
-        <p class="eyebrow">こども向け がくしゅうアプリ</p>
-        <h1>ポケモン なまえクイズ</h1>
+        <div class="mini">こどもむけ・ポケモン なまえあて</div>
+        <h1>ポケモン だれかな？クイズ</h1>
       </div>
-      <button id="homeBtn" class="ghost-btn hidden" type="button">🏠 メニュー</button>
+      <div class="top-actions">
+        <button id="soundToggle" class="ghost" type="button">🔊 おと ON</button>
+        <button id="homeBtn" class="ghost hidden" type="button">🏠 メニュー</button>
+      </div>
     </header>
 
-    <section id="menuScreen" class="screen active">
-      <div class="hero-card">
-        <div class="hero-ball" aria-hidden="true">●</div>
-        <h2>あそびながら おぼえよう！</h2>
-        <p>せだいを えらんで 10もんクイズに ちょうせんできます。</p>
-        <div class="menu-actions">
-          <button id="goQuizBtn" class="primary-btn big-btn" type="button">🎮 クイズをする</button>
-          <button id="goDexBtn" class="secondary-btn big-btn" type="button">📖 ポケモンずかん</button>
-        </div>
+    <section id="menu" class="screen active">
+      <div class="card hero">
+        <div class="hero-emoji">⚡🔥💧🌿</div>
+        <h2>ポケモンの なまえを あてよう！</h2>
+        <p>せだい・もんだいすう・むずかしさを えらべるよ。</p>
+
+        <button id="quizSetupBtn" class="primary big" type="button">▶ クイズをする</button>
+        <button id="reviewModeBtn" class="secondary big" type="button">🧠 にがてポケモンを れんしゅう</button>
+        <button id="dexBtn" class="secondary big" type="button">📘 ポケモンずかん</button>
+
+        <div id="bestSummary" class="best-summary"></div>
       </div>
     </section>
 
-    <section id="generationScreen" class="screen">
-      <div class="panel">
-        <h2>しゅつだいする せだいを えらぼう</h2>
-        <p class="muted">いくつでも えらべます。</p>
+    <section id="setup" class="screen">
+      <div class="card">
+        <h2>クイズの じゅんび</h2>
+
+        <h3>① せだいを えらぶ</h3>
         <div id="generationGrid" class="generation-grid"></div>
         <div class="row-actions">
-          <button id="selectAllBtn" class="small-btn" type="button">すべて えらぶ</button>
-          <button id="clearAllBtn" class="small-btn" type="button">すべて はずす</button>
+          <button id="selectAllGenBtn" class="small" type="button">ぜんぶ えらぶ</button>
+          <button id="clearGenBtn" class="small" type="button">ぜんぶ はずす</button>
         </div>
-        <p id="selectedCount" class="selected-count"></p>
-        <button id="startQuizBtn" class="primary-btn big-btn" type="button">クイズ スタート！</button>
+
+        <h3>② もんだいすう</h3>
+        <div class="choice-row">
+          <label class="choice-card"><input type="radio" name="questionCount" value="5"><span>5もん</span></label>
+          <label class="choice-card"><input type="radio" name="questionCount" value="10" checked><span>10もん</span></label>
+          <label class="choice-card"><input type="radio" name="questionCount" value="20"><span>20もん</span></label>
+        </div>
+
+        <h3>③ むずかしさ</h3>
+        <div class="difficulty-grid">
+          <label class="choice-card">
+            <input type="radio" name="difficulty" value="easy" checked>
+            <span class="choice-title">かんたん</span>
+            <span class="choice-note">ゆうめいなポケモンを おおめに しゅつだい</span>
+          </label>
+          <label class="choice-card">
+            <input type="radio" name="difficulty" value="normal">
+            <span class="choice-title">ふつう</span>
+            <span class="choice-note">えらんだ せだいから まんべんなく</span>
+          </label>
+          <label class="choice-card">
+            <input type="radio" name="difficulty" value="hard">
+            <span class="choice-title">むずかしい</span>
+            <span class="choice-note">にたポケモンを せんたくしに だしやすい</span>
+          </label>
+        </div>
+
+        <p id="setupMessage" class="feedback"></p>
+        <button id="startQuizBtn" class="primary big" type="button">クイズ スタート！</button>
       </div>
     </section>
 
-    <section id="quizScreen" class="screen">
-      <div class="quiz-top">
-        <div id="questionCounter" class="status-pill">1 / 10</div>
-        <div id="scoreDisplay" class="status-pill">せいかい 0</div>
+    <section id="quiz" class="screen">
+      <div class="status-row">
+        <span id="qCounter" class="pill">1 / 10</span>
+        <span id="scoreCounter" class="pill">せいかい 0</span>
+        <span id="streakCounter" class="pill streak">れんぞく 0</span>
       </div>
-      <div class="panel quiz-panel">
-        <h2>このポケモンは だれ？</h2>
-        <div class="image-wrap">
-          <div id="imageLoading" class="loading-text">がぞうを よみこみちゅう…</div>
-          <img id="quizImage" class="pokemon-image hidden" alt="ポケモンの画像" />
+
+      <div class="card quiz-card">
+        <div class="quiz-head">
+          <span id="genLabel" class="subpill">第1世代</span>
+          <span id="bestLabel" class="subpill">BEST 0</span>
         </div>
-        <div id="answerGrid" class="answer-grid"></div>
+
+        <h2>この ポケモンは だれ？</h2>
+
+        <div class="picture-frame">
+          <div id="imageLoading" class="loading">よみこみちゅう…</div>
+          <img id="pokemonImage" class="pokemon-image hidden" alt="ポケモンの画像">
+        </div>
+
+        <div id="choices" class="choices"></div>
+
         <p id="feedback" class="feedback" aria-live="polite"></p>
-        <button id="nextQuestionBtn" class="primary-btn hidden" type="button">つぎの もんだい →</button>
+        <button id="nextBtn" class="primary hidden" type="button">つぎの もんだい →</button>
       </div>
     </section>
 
-    <section id="resultScreen" class="screen">
-      <div class="panel result-panel">
-        <h2>クイズけっか</h2>
-        <div id="resultScore" class="result-score"></div>
-        <p id="resultMessage" class="result-message"></p>
-        <div class="table-wrap">
+    <section id="result" class="screen">
+      <div class="card">
+        <h2>🎉 クイズ おしまい！</h2>
+        <div id="finalScore" class="final-score"></div>
+        <div id="bestResult" class="best-result"></div>
+        <p id="resultMessage" class="final-message"></p>
+
+        <div class="result-list-wrap">
           <table>
-            <thead><tr><th>もんだい</th><th>No.</th><th>せいかい</th><th>あなたのこたえ</th><th>けっか</th></tr></thead>
+            <thead>
+              <tr>
+                <th>え</th>
+                <th>なまえ</th>
+                <th>こたえ</th>
+                <th>けっか</th>
+              </tr>
+            </thead>
             <tbody id="resultBody"></tbody>
           </table>
         </div>
-        <div class="result-actions">
-          <button id="retryBtn" class="primary-btn" type="button">おなじ せだいで もういちど</button>
-          <button id="changeGenerationBtn" class="secondary-btn" type="button">せだいを えらびなおす</button>
-          <button id="resultDexBtn" class="secondary-btn" type="button">ずかんで ふくしゅう</button>
+
+        <div class="result-buttons">
+          <button id="wrongOnlyBtn" class="primary" type="button">まちがえた ポケモンだけ</button>
+          <button id="retryBtn" class="secondary" type="button">おなじ せっていで もういちど</button>
+          <button id="openDexFromResultBtn" class="secondary" type="button">ずかんで ふくしゅう</button>
+          <button id="changeSetupBtn" class="secondary" type="button">せっていを かえる</button>
+          <button id="resultMenuBtn" class="ghost" type="button">メニューへ</button>
         </div>
       </div>
     </section>
 
-    <section id="dexScreen" class="screen">
-      <div class="panel dex-panel">
+    <section id="dex" class="screen">
+      <div class="card">
         <div class="dex-title-row">
-          <h2>📖 ポケモンずかん</h2>
-          <button id="hideNameBtn" class="small-btn" type="button">なまえを かくす</button>
+          <div>
+            <h2>📘 ポケモンずかん</h2>
+            <p class="muted">No.1〜1025。ポケモンを タップすると おおきく みられるよ。</p>
+          </div>
         </div>
-        <div class="image-wrap dex-image-wrap">
-          <div id="dexLoading" class="loading-text">がぞうを よみこみちゅう…</div>
-          <img id="dexImage" class="pokemon-image hidden" alt="ポケモンの画像" />
+
+        <div class="dex-controls">
+          <div class="gen-jumps" id="dexGenJumps"></div>
+
+          <div class="dex-search-row">
+            <label>
+              No.
+              <input id="dexNumberInput" type="number" min="1" max="1025" inputmode="numeric" placeholder="25">
+            </label>
+            <button id="dexJumpBtn" class="small" type="button">ジャンプ</button>
+            <button id="toggleNameBtn" class="small" type="button">🙈 なまえを かくす</button>
+          </div>
+
+          <div class="dex-view-toggle">
+            <button id="gridViewBtn" class="tab active" type="button">いちらん</button>
+            <button id="singleViewBtn" class="tab" type="button">1ぴきずつ</button>
+          </div>
         </div>
-        <div id="dexNumber" class="dex-number">No.0001</div>
-        <div id="dexName" class="dex-name">----</div>
-        <div class="dex-nav">
-          <button id="prevDexBtn" class="secondary-btn" type="button">← まえ</button>
-          <button id="nextDexBtn" class="secondary-btn" type="button">つぎ →</button>
+
+        <div id="dexGridView">
+          <div id="dexGrid" class="dex-grid"></div>
+          <div class="pager">
+            <button id="dexPrevPageBtn" class="small" type="button">← まえの20ぴき</button>
+            <span id="dexPageLabel" class="pill">1 - 20</span>
+            <button id="dexNextPageBtn" class="small" type="button">つぎの20ぴき →</button>
+          </div>
         </div>
-        <div class="jump-box">
-          <label for="dexJump">ずかんNo.</label>
-          <input id="dexJump" type="number" min="1" max="1025" inputmode="numeric" />
-          <button id="jumpBtn" class="small-btn" type="button">ジャンプ</button>
+
+        <div id="dexSingleView" class="hidden">
+          <div class="dex-card">
+            <div class="dex-number" id="dexNo">No.001</div>
+            <div class="picture-frame dex-picture">
+              <div id="dexLoading" class="loading">よみこみちゅう…</div>
+              <img id="dexImage" class="pokemon-image hidden" alt="">
+            </div>
+            <div id="dexName" class="dex-name">フシギダネ</div>
+            <div class="dex-nav">
+              <button id="dexPrevBtn" class="secondary" type="button">← まえ</button>
+              <button id="dexSpeakBtn" class="small" type="button">🔊 なまえを きく</button>
+              <button id="dexNextBtn" class="secondary" type="button">つぎ →</button>
+            </div>
+          </div>
         </div>
-        <p class="muted small-note">No.1〜1025 に対応しています。</p>
       </div>
     </section>
   </main>
+
   <script src="app.js"></script>
 </body>
 </html>
