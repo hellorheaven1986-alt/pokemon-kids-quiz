@@ -46,32 +46,75 @@ function japaneseFlavorEntry(species){
  const entries=species.flavor_text_entries.filter(x=>x.language?.name==="ja-Hrkt"||x.language?.name==="ja");
  return entries.length?entries[entries.length-1]:null;
 }
+function fetchWithTimeout(url,ms=8000){
+ const controller=new AbortController();
+ const timer=setTimeout(()=>controller.abort(),ms);
+ return fetch(url,{signal:controller.signal})
+   .finally(()=>clearTimeout(timer));
+}
+
 async function getPokemonDetail(id){
  if(state.detailCache[id]) return state.detailCache[id];
+
+ const fallback={
+  name:cachedName(id),
+  genus:"",
+  description:"ずかんせつめいを よみこめませんでした。",
+  version:"",
+  types:[],
+  heightMeters:null,
+  weightKg:null
+ };
+
+ let species=null;
+ let pokemon=null;
+
  try{
-  const [sr,pr]=await Promise.all([
-   fetch(`https://pokeapi.co/api/v2/pokemon-species/${id}/`),
-   fetch(`https://pokeapi.co/api/v2/pokemon/${id}/`)
+  const results=await Promise.allSettled([
+   fetchWithTimeout(`https://pokeapi.co/api/v2/pokemon-species/${id}/`,8000),
+   fetchWithTimeout(`https://pokeapi.co/api/v2/pokemon/${id}/`,8000)
   ]);
-  if(!sr.ok||!pr.ok) throw new Error();
-  const species=await sr.json(),pokemon=await pr.json();
-  const jaName=species.names.find(x=>x.language.name==="ja-Hrkt")||species.names.find(x=>x.language.name==="ja");
-  const jaGenus=species.genera.find(x=>x.language.name==="ja-Hrkt")||species.genera.find(x=>x.language.name==="ja");
-  const flavor=japaneseFlavorEntry(species);
-  const detail={
-   name:jaName?.name||cachedName(id),
-   genus:jaGenus?.genus||"",
-   description:cleanFlavorText(flavor?.flavor_text||""),
-   version:flavor?.version?.name||"",
-   types:pokemon.types.slice().sort((a,b)=>a.slot-b.slot).map(x=>TYPE_JA[x.type.name]||x.type.name),
-   heightMeters:pokemon.height/10,
-   weightKg:pokemon.weight/10
-  };
-  state.nameCache[id]=detail.name;state.detailCache[id]=detail;saveNameCache();saveDetailCache();return detail;
- }catch{
-  return {name:await getPokemonName(id),genus:"",description:"ずかんせつめいを よみこめませんでした。",version:"",types:[],heightMeters:null,weightKg:null};
+
+  if(results[0].status==="fulfilled" && results[0].value.ok){
+   species=await results[0].value.json();
+  }
+  if(results[1].status==="fulfilled" && results[1].value.ok){
+   pokemon=await results[1].value.json();
+  }
+ }catch(err){
+  console.warn("図鑑詳細取得エラー",id,err);
  }
+
+ if(species){
+  const jaName=species.names.find(x=>x.language.name==="ja-Hrkt")
+    || species.names.find(x=>x.language.name==="ja");
+  const jaGenus=species.genera.find(x=>x.language.name==="ja-Hrkt")
+    || species.genera.find(x=>x.language.name==="ja");
+  const flavor=japaneseFlavorEntry(species);
+
+  fallback.name=jaName?.name || fallback.name;
+  fallback.genus=jaGenus?.genus || "";
+  fallback.description=cleanFlavorText(flavor?.flavor_text || "")
+    || "ずかんせつめいが ありません。";
+  fallback.version=flavor?.version?.name || "";
+ }
+
+ if(pokemon){
+  fallback.types=pokemon.types
+    .slice()
+    .sort((a,b)=>a.slot-b.slot)
+    .map(x=>TYPE_JA[x.type.name]||x.type.name);
+  fallback.heightMeters=pokemon.height/10;
+  fallback.weightKg=pokemon.weight/10;
+ }
+
+ state.nameCache[id]=fallback.name;
+ state.detailCache[id]=fallback;
+ saveNameCache();
+ saveDetailCache();
+ return fallback;
 }
+
 async function getPokemonName(id){
  if(state.nameCache[id]) return state.nameCache[id];
  try{
@@ -207,6 +250,7 @@ async function renderDexGrid(){
 }
 async function renderDexSingle(){
  const id=state.dexId;
+
  document.getElementById("dexNo").textContent=`No.${padNo(id)}`;
  document.getElementById("dexName").textContent="よみこみちゅう…";
  document.getElementById("dexCategory").textContent="ぶんるい：よみこみちゅう…";
@@ -215,21 +259,83 @@ async function renderDexSingle(){
  document.getElementById("dexWeight").textContent="-";
  document.getElementById("dexDescription").textContent="よみこみちゅう…";
  document.getElementById("dexDescriptionVersion").textContent="";
- const detail=await getPokemonDetail(id);
- document.getElementById("dexName").textContent=state.dexNamesHidden?"？？？":detail.name;
- document.getElementById("dexCategory").textContent=detail.genus?`ぶんるい：${detail.genus}`:"ぶんるい：-";
- const typeBox=document.getElementById("dexTypes");typeBox.innerHTML="";
- detail.types.forEach(type=>{const s=document.createElement("span");s.className="type-badge";s.textContent=type;typeBox.appendChild(s);});
- document.getElementById("dexHeight").textContent=detail.heightMeters==null?"-":`${detail.heightMeters.toFixed(1)} m`;
- document.getElementById("dexWeight").textContent=detail.weightKg==null?"-":`${detail.weightKg.toFixed(1)} kg`;
- document.getElementById("dexDescription").textContent=detail.description||"ずかんせつめいが ありません。";
- document.getElementById("dexDescriptionVersion").textContent=detail.version?`しゅってんゲーム：${detail.version}`:"";
- const img=document.getElementById("dexImage"),loading=document.getElementById("dexLoading");
- loading.classList.remove("hidden");img.classList.add("hidden");img.dataset.fallback="0";
- img.onload=()=>{loading.classList.add("hidden");img.classList.remove("hidden")};
- img.onerror=()=>{if(img.dataset.fallback!=="1"){img.dataset.fallback="1";img.src=fallbackSpriteUrl(id)}};
- img.src=pokemonImageUrl(id);img.alt=detail.name;
- document.getElementById("dexPrevBtn").disabled=id<=1;document.getElementById("dexNextBtn").disabled=id>=MAX_POKEMON;
+
+ let detail;
+ try{
+  detail=await getPokemonDetail(id);
+ }catch(err){
+  console.warn("図鑑表示エラー",id,err);
+  detail={
+   name:await getPokemonName(id),
+   genus:"",
+   description:"ずかんせつめいを よみこめませんでした。",
+   version:"",
+   types:[],
+   heightMeters:null,
+   weightKg:null
+  };
+ }
+
+ // 「次へ」をすぐ押した場合、古い通信結果で上書きしない
+ if(id!==state.dexId) return;
+
+ document.getElementById("dexName").textContent=
+   state.dexNamesHidden?"？？？":detail.name;
+ document.getElementById("dexCategory").textContent=
+   detail.genus?`ぶんるい：${detail.genus}`:"ぶんるい：-";
+
+ const typeBox=document.getElementById("dexTypes");
+ typeBox.innerHTML="";
+ if(detail.types.length){
+  detail.types.forEach(type=>{
+   const s=document.createElement("span");
+   s.className="type-badge";
+   s.textContent=type;
+   typeBox.appendChild(s);
+  });
+ }else{
+  const s=document.createElement("span");
+  s.className="type-badge";
+  s.textContent="タイプ：-";
+  typeBox.appendChild(s);
+ }
+
+ document.getElementById("dexHeight").textContent=
+   detail.heightMeters==null?"-":`${detail.heightMeters.toFixed(1)} m`;
+ document.getElementById("dexWeight").textContent=
+   detail.weightKg==null?"-":`${detail.weightKg.toFixed(1)} kg`;
+
+ document.getElementById("dexDescription").textContent=
+   detail.description || "ずかんせつめいが ありません。";
+ document.getElementById("dexDescriptionVersion").textContent=
+   detail.version?`しゅってんゲーム：${detail.version}`:"";
+
+ const img=document.getElementById("dexImage");
+ const loading=document.getElementById("dexLoading");
+ loading.textContent="よみこみちゅう…";
+ loading.classList.remove("hidden");
+ img.classList.add("hidden");
+ img.dataset.fallback="0";
+
+ img.onload=()=>{
+  if(id!==state.dexId) return;
+  loading.classList.add("hidden");
+  img.classList.remove("hidden");
+ };
+ img.onerror=()=>{
+  if(img.dataset.fallback!=="1"){
+   img.dataset.fallback="1";
+   img.src=fallbackSpriteUrl(id);
+  }else{
+   loading.textContent="がぞうを よみこめませんでした";
+  }
+ };
+
+ img.src=pokemonImageUrl(id);
+ img.alt=detail.name;
+
+ document.getElementById("dexPrevBtn").disabled=id<=1;
+ document.getElementById("dexNextBtn").disabled=id>=MAX_POKEMON;
 }
 
 function setDexMode(mode){state.dexMode=mode;document.getElementById("dexGridView").classList.toggle("hidden",mode!=="grid");document.getElementById("dexSingleView").classList.toggle("hidden",mode!=="single");document.getElementById("gridViewBtn").classList.toggle("active",mode==="grid");document.getElementById("singleViewBtn").classList.toggle("active",mode==="single");}
