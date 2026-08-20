@@ -1,5 +1,6 @@
 const MAX_POKEMON=1025;
 const NAME_CACHE_KEY="pokemon_name_cache_ja_v4";
+const DETAIL_CACHE_KEY="pokemon_detail_cache_ja_v1";
 const STATS_KEY="pokemon_quiz_stats_v2";
 const SOUND_KEY="pokemon_quiz_sound_v1";
 
@@ -26,8 +27,9 @@ const FAMOUS_IDS=new Set([
 function loadNameCache(){
   try{return JSON.parse(localStorage.getItem(NAME_CACHE_KEY)||"{}")||{};}catch{return {};}
 }
+function loadDetailCache(){try{return JSON.parse(localStorage.getItem(DETAIL_CACHE_KEY)||"{}")||{};}catch{return {};}}
 const state={
- nameCache:loadNameCache(),selectedGenerations:new Set([1]),questionCount:10,difficulty:"easy",
+ nameCache:loadNameCache(),detailCache:loadDetailCache(),selectedGenerations:new Set([1]),questionCount:10,difficulty:"easy",
  pool:[],reviewIds:null,quizIds:[],currentIndex:0,score:0,streak:0,bestStreakThisRun:0,
  history:[],locked:false,soundOn:localStorage.getItem(SOUND_KEY)!=="off",
  dexId:1,dexPageStart:1,dexPageSize:20,dexNamesHidden:false,dexMode:"grid"
@@ -37,6 +39,39 @@ const screens={menu:document.getElementById("menu"),setup:document.getElementByI
 quiz:document.getElementById("quiz"),result:document.getElementById("result"),dex:document.getElementById("dex")};
 
 function saveNameCache(){try{localStorage.setItem(NAME_CACHE_KEY,JSON.stringify(state.nameCache));}catch{}}
+function saveDetailCache(){try{localStorage.setItem(DETAIL_CACHE_KEY,JSON.stringify(state.detailCache));}catch{}}
+const TYPE_JA={normal:"ノーマル",fire:"ほのお",water:"みず",electric:"でんき",grass:"くさ",ice:"こおり",fighting:"かくとう",poison:"どく",ground:"じめん",flying:"ひこう",psychic:"エスパー",bug:"むし",rock:"いわ",ghost:"ゴースト",dragon:"ドラゴン",dark:"あく",steel:"はがね",fairy:"フェアリー"};
+function cleanFlavorText(text){return (text||"").replace(/\f/g," ").replace(/\n/g," ").replace(/\r/g," ").replace(/\s+/g," ").trim();}
+function japaneseFlavorEntry(species){
+ const entries=species.flavor_text_entries.filter(x=>x.language?.name==="ja-Hrkt"||x.language?.name==="ja");
+ return entries.length?entries[entries.length-1]:null;
+}
+async function getPokemonDetail(id){
+ if(state.detailCache[id]) return state.detailCache[id];
+ try{
+  const [sr,pr]=await Promise.all([
+   fetch(`https://pokeapi.co/api/v2/pokemon-species/${id}/`),
+   fetch(`https://pokeapi.co/api/v2/pokemon/${id}/`)
+  ]);
+  if(!sr.ok||!pr.ok) throw new Error();
+  const species=await sr.json(),pokemon=await pr.json();
+  const jaName=species.names.find(x=>x.language.name==="ja-Hrkt")||species.names.find(x=>x.language.name==="ja");
+  const jaGenus=species.genera.find(x=>x.language.name==="ja-Hrkt")||species.genera.find(x=>x.language.name==="ja");
+  const flavor=japaneseFlavorEntry(species);
+  const detail={
+   name:jaName?.name||cachedName(id),
+   genus:jaGenus?.genus||"",
+   description:cleanFlavorText(flavor?.flavor_text||""),
+   version:flavor?.version?.name||"",
+   types:pokemon.types.slice().sort((a,b)=>a.slot-b.slot).map(x=>TYPE_JA[x.type.name]||x.type.name),
+   heightMeters:pokemon.height/10,
+   weightKg:pokemon.weight/10
+  };
+  state.nameCache[id]=detail.name;state.detailCache[id]=detail;saveNameCache();saveDetailCache();return detail;
+ }catch{
+  return {name:await getPokemonName(id),genus:"",description:"ずかんせつめいを よみこめませんでした。",version:"",types:[],heightMeters:null,weightKg:null};
+ }
+}
 async function getPokemonName(id){
  if(state.nameCache[id]) return state.nameCache[id];
  try{
@@ -171,12 +206,32 @@ async function renderDexGrid(){
  document.getElementById("dexPageLabel").textContent=`${start} - ${end}`;document.getElementById("dexPrevPageBtn").disabled=start<=1;document.getElementById("dexNextPageBtn").disabled=end>=MAX_POKEMON;
 }
 async function renderDexSingle(){
- const id=state.dexId;document.getElementById("dexNo").textContent=`No.${padNo(id)}`;document.getElementById("dexName").textContent="よみこみちゅう…";
- const name=await getPokemonName(id);document.getElementById("dexName").textContent=state.dexNamesHidden?"？？？":name;
- const img=document.getElementById("dexImage"),loading=document.getElementById("dexLoading");loading.classList.remove("hidden");img.classList.add("hidden");img.dataset.fallback="0";
- img.onload=()=>{loading.classList.add("hidden");img.classList.remove("hidden")};img.onerror=()=>{if(img.dataset.fallback!=="1"){img.dataset.fallback="1";img.src=fallbackSpriteUrl(id)}};img.src=pokemonImageUrl(id);img.alt=name;
+ const id=state.dexId;
+ document.getElementById("dexNo").textContent=`No.${padNo(id)}`;
+ document.getElementById("dexName").textContent="よみこみちゅう…";
+ document.getElementById("dexCategory").textContent="ぶんるい：よみこみちゅう…";
+ document.getElementById("dexTypes").innerHTML="";
+ document.getElementById("dexHeight").textContent="-";
+ document.getElementById("dexWeight").textContent="-";
+ document.getElementById("dexDescription").textContent="よみこみちゅう…";
+ document.getElementById("dexDescriptionVersion").textContent="";
+ const detail=await getPokemonDetail(id);
+ document.getElementById("dexName").textContent=state.dexNamesHidden?"？？？":detail.name;
+ document.getElementById("dexCategory").textContent=detail.genus?`ぶんるい：${detail.genus}`:"ぶんるい：-";
+ const typeBox=document.getElementById("dexTypes");typeBox.innerHTML="";
+ detail.types.forEach(type=>{const s=document.createElement("span");s.className="type-badge";s.textContent=type;typeBox.appendChild(s);});
+ document.getElementById("dexHeight").textContent=detail.heightMeters==null?"-":`${detail.heightMeters.toFixed(1)} m`;
+ document.getElementById("dexWeight").textContent=detail.weightKg==null?"-":`${detail.weightKg.toFixed(1)} kg`;
+ document.getElementById("dexDescription").textContent=detail.description||"ずかんせつめいが ありません。";
+ document.getElementById("dexDescriptionVersion").textContent=detail.version?`しゅってんゲーム：${detail.version}`:"";
+ const img=document.getElementById("dexImage"),loading=document.getElementById("dexLoading");
+ loading.classList.remove("hidden");img.classList.add("hidden");img.dataset.fallback="0";
+ img.onload=()=>{loading.classList.add("hidden");img.classList.remove("hidden")};
+ img.onerror=()=>{if(img.dataset.fallback!=="1"){img.dataset.fallback="1";img.src=fallbackSpriteUrl(id)}};
+ img.src=pokemonImageUrl(id);img.alt=detail.name;
  document.getElementById("dexPrevBtn").disabled=id<=1;document.getElementById("dexNextBtn").disabled=id>=MAX_POKEMON;
 }
+
 function setDexMode(mode){state.dexMode=mode;document.getElementById("dexGridView").classList.toggle("hidden",mode!=="grid");document.getElementById("dexSingleView").classList.toggle("hidden",mode!=="single");document.getElementById("gridViewBtn").classList.toggle("active",mode==="grid");document.getElementById("singleViewBtn").classList.toggle("active",mode==="single");}
 function openDex(){showScreen("dex");state.dexMode==="grid"?renderDexGrid():renderDexSingle();}
 function jumpDex(){const v=Math.max(1,Math.min(MAX_POKEMON,Number(document.getElementById("dexNumberInput").value)||1));state.dexId=v;state.dexPageStart=Math.floor((v-1)/state.dexPageSize)*state.dexPageSize+1;state.dexMode==="grid"?renderDexGrid():renderDexSingle();}
@@ -206,6 +261,7 @@ document.getElementById("singleViewBtn").addEventListener("click",()=>{setDexMod
 document.getElementById("dexPrevBtn").addEventListener("click",()=>{state.dexId=Math.max(1,state.dexId-1);renderDexSingle();});
 document.getElementById("dexNextBtn").addEventListener("click",()=>{state.dexId=Math.min(MAX_POKEMON,state.dexId+1);renderDexSingle();});
 document.getElementById("dexSpeakBtn").addEventListener("click",async()=>speak(await getPokemonName(state.dexId)));
+document.getElementById("dexDescriptionSpeakBtn").addEventListener("click",async()=>{const d=await getPokemonDetail(state.dexId);speak(d.description||"ずかんせつめいが ありません。");});
 
 buildGenerationGrid();
 buildDexGenerationJumps();

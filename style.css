@@ -119,3 +119,17 @@ th{background:#f2f7fb}
   .dex-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .topbar h1{font-size:1.22rem}
 }
+
+.dex-details{width:min(720px,100%);margin:8px auto 18px}
+.dex-category{text-align:center;font-weight:900;color:var(--muted);margin-bottom:10px}
+.dex-badges{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.type-badge{display:inline-flex;align-items:center;justify-content:center;min-width:86px;padding:8px 12px;border-radius:999px;background:#eef3f8;border:2px solid var(--line);font-weight:900}
+.dex-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.dex-stat{border:2px solid var(--line);background:var(--soft);border-radius:16px;padding:12px;text-align:center}
+.dex-stat-label{display:block;color:var(--muted);font-weight:900;font-size:.86rem;margin-bottom:4px}
+.dex-stat strong{font-size:1.2rem}
+.dex-description-box{background:#fffdf2;border:3px solid #ead36a;border-radius:18px;padding:16px;text-align:left}
+.dex-description-title{font-weight:900;color:#8b6b00;margin-bottom:8px}
+.dex-description{margin:0;font-weight:800;line-height:1.8;white-space:pre-wrap}
+.dex-version{margin-top:8px;color:var(--muted);font-size:.78rem;font-weight:700}
+.dex-description-box .small{display:block;margin:12px auto 0}
